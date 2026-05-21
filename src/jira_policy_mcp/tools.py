@@ -50,7 +50,9 @@ def search(policy: Policy, get_client: ClientFactory, jql: str = "", max_results
         scoped["value"] = policy.build_scoped_jql(jql)
 
     _guard("jira_search", args, check)
-    limit = min(max_results or policy.max_search_results, policy.max_search_results)
+    limit = max(
+        1, min(max_results or policy.max_search_results, policy.max_search_results)
+    )
     result = get_client().search(scoped["value"], limit)
     audit.record("jira_search", {"jql": scoped["value"], "max_results": limit}, "allow")
     return result
@@ -71,7 +73,9 @@ def get_comments(policy: Policy, get_client: ClientFactory, key: str) -> dict:
 
 
 def add_comment(policy: Policy, get_client: ClientFactory, key: str, body: str) -> dict:
-    args = {"key": key, "body": body}
+    # The comment body may carry sensitive content, so only its length is
+    # recorded to the audit log (on both allow and deny), never the text.
+    args = {"key": key, "body_len": len(body or "")}
     normalized = {"value": ""}
 
     def check():
@@ -103,7 +107,8 @@ def create_issue(
     policy: Policy, get_client: ClientFactory, project: str, issue_type: str, fields: dict
 ) -> dict:
     fields = fields or {}
-    args = {"project": project, "issue_type": issue_type, "fields": fields}
+    # Log only field names, never their (possibly sensitive) values.
+    args = {"project": project, "issue_type": issue_type, "fields": list(fields)}
 
     def check():
         policy.require_capability(Capability.CREATE)
@@ -126,7 +131,8 @@ def create_issue(
 
 def update_issue(policy: Policy, get_client: ClientFactory, key: str, fields: dict) -> dict:
     fields = fields or {}
-    args = {"key": key, "fields": fields}
+    # Log only field names, never their (possibly sensitive) values.
+    args = {"key": key, "fields": list(fields)}
     normalized = {"value": ""}
 
     def check():
