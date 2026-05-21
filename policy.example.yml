@@ -1,0 +1,41 @@
+# jira-policy-mcp — example policy
+#
+# Copy this file to your own location (it is gitignored as `policy.yml`) and
+# point the server at it:  jira-policy-mcp --policy /path/to/policy.yml
+#
+# This file controls EXACTLY what the AI agent may do. It contains no secrets —
+# credentials come from the environment (see README). The defaults below are
+# intentionally minimal: read a single issue by key, nothing else.
+
+jira:
+  # The base URL of your Jira instance. Determines the auth flavour:
+  #   *.atlassian.net   -> Jira Cloud      (deployment: cloud)
+  #   your own domain   -> Data Center/Server (deployment: datacenter)
+  base_url: https://example.atlassian.net
+  deployment: cloud            # cloud | datacenter
+
+# Projects the agent may touch at all. A request for any key outside this list
+# is rejected before any network call is made. Use your real project keys here.
+allowed_projects:
+  - ACME
+  - DEMO
+
+# Every capability is OFF unless listed true. Turn on only what you need.
+capabilities:
+  read_by_key: true            # jira_get_issue(key)        — the safe default
+  search: false                # jira_search(jql)           — JQL, forced into allowed_projects
+  read_comments: false         # jira_get_comments(key)
+  add_comment: false           # jira_add_comment(key, body)
+  create: false                # jira_create_issue(...)
+  edit: false                  # jira_update_issue(key, fields)
+  transition: false            # jira_transition_issue(key, transition)
+  delete: false                # jira_delete_issue(key)     — keep off unless you really mean it
+
+# Only relevant once create/edit is enabled: fields the agent may write.
+allowed_fields:
+  - summary
+  - description
+  - labels
+
+# Cap on jira_search result count.
+max_search_results: 25

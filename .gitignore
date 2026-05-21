@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Local config / secrets — never commit
+policy.yml
+.env
+.env.*
+
+# macOS
+.DS_Store
