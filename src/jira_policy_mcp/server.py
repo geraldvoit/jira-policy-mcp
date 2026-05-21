@@ -66,9 +66,15 @@ def build_server(policy: Policy) -> FastMCP:
     if policy.has(Capability.CREATE):
 
         @mcp.tool()
+        def jira_get_create_fields(project: str, issue_type: str) -> dict:
+            """List the fields available (and which are required) when creating
+            an issue of the given type in an allowed project."""
+            return tools.get_create_fields(policy, client.get, project, issue_type)
+
+        @mcp.tool()
         def jira_create_issue(project: str, issue_type: str, fields: dict) -> dict:
-            """Create a new issue in an allowed project. Only policy-allowed
-            fields may be set."""
+            """Create a new issue in an allowed project. Fields are subject to
+            the policy's field rules (allowed_fields / allow_all_fields)."""
             return tools.create_issue(policy, client.get, project, issue_type, fields)
 
     if policy.has(Capability.EDIT):

@@ -26,16 +26,20 @@ capabilities:
   search: false                # jira_search(jql)           — JQL, forced into allowed_projects
   read_comments: false         # jira_get_comments(key)
   add_comment: false           # jira_add_comment(key, body)
-  create: false                # jira_create_issue(...)
+  create: false                # jira_create_issue(...) + jira_get_create_fields(...)
   edit: false                  # jira_update_issue(key, fields)
   transition: false            # jira_transition_issue(key, transition)
   delete: false                # jira_delete_issue(key)     — keep off unless you really mean it
 
-# Only relevant once create/edit is enabled: fields the agent may write.
+# Field write rules — only relevant once create/edit is enabled.
+#   allowed_fields:    the agent may only set these fields, or
+#   allow_all_fields:  set true to allow any field the project accepts
+# If allow_all_fields is true, allowed_fields is ignored.
 allowed_fields:
   - summary
   - description
   - labels
+allow_all_fields: false
 
 # Cap on jira_search result count.
 max_search_results: 25

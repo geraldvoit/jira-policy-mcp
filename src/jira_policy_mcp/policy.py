@@ -54,6 +54,7 @@ class Policy:
     allowed_projects: frozenset[str]
     capabilities: frozenset[Capability]
     allowed_fields: frozenset[str]
+    allow_all_fields: bool
     max_search_results: int
 
     # -- construction ---------------------------------------------------------
@@ -93,6 +94,7 @@ class Policy:
         allowed_fields = frozenset(
             str(f).strip() for f in (data.get("allowed_fields") or []) if str(f).strip()
         )
+        allow_all_fields = bool(data.get("allow_all_fields", False))
         try:
             max_results = int(data.get("max_search_results", 25))
         except (TypeError, ValueError):
@@ -104,6 +106,7 @@ class Policy:
             allowed_projects=allowed_projects,
             capabilities=frozenset(enabled),
             allowed_fields=allowed_fields,
+            allow_all_fields=allow_all_fields,
             max_search_results=max(1, max_results),
         )
 
@@ -150,9 +153,12 @@ class Policy:
         return normalized
 
     def require_fields_in_scope(self, fields: dict) -> None:
+        if self.allow_all_fields:
+            return
         if not self.allowed_fields:
             raise PolicyError(
-                "no fields are write-allowed by policy (set allowed_fields)"
+                "no fields are write-allowed by policy "
+                "(set allowed_fields, or allow_all_fields: true)"
             )
         disallowed = sorted(set(fields) - self.allowed_fields)
         if disallowed:

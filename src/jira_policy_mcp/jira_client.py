@@ -108,6 +108,67 @@ class JiraClient:
     def get_transitions(self, key: str) -> dict:
         return self._request("GET", f"/issue/{key}/transitions").json()
 
+    def get_create_fields(self, project: str, issue_type: str) -> dict:
+        """Return the fields available when creating an issue of this type.
+
+        Each entry is {"key", "name", "required"}. Use it to discover what may
+        (or must) be set before calling jira_create_issue.
+        """
+        if self._is_cloud:
+            return self._create_fields_cloud(project, issue_type)
+        return self._create_fields_datacenter(project, issue_type)
+
+    def _create_fields_cloud(self, project: str, issue_type: str) -> dict:
+        types = self._request(
+            "GET", f"/issue/createmeta/{project}/issuetypes"
+        ).json()
+        match = next(
+            (
+                t
+                for t in types.get("values", [])
+                if t.get("name", "").lower() == issue_type.lower()
+            ),
+            None,
+        )
+        if match is None:
+            names = ", ".join(t.get("name", "?") for t in types.get("values", [])) or "none"
+            raise JiraError(
+                f"issue type {issue_type!r} not available for {project} (available: {names})"
+            )
+        meta = self._request(
+            "GET", f"/issue/createmeta/{project}/issuetypes/{match['id']}"
+        ).json()
+        fields = [
+            {
+                "key": field.get("fieldId"),
+                "name": field.get("name"),
+                "required": field.get("required", False),
+            }
+            for field in meta.get("values", [])
+        ]
+        return {"project": project, "issue_type": match.get("name"), "fields": fields}
+
+    def _create_fields_datacenter(self, project: str, issue_type: str) -> dict:
+        params = {
+            "projectKeys": project,
+            "issuetypeNames": issue_type,
+            "expand": "projects.issuetypes.fields",
+        }
+        data = self._request("GET", "/issue/createmeta", params=params).json()
+        projects = data.get("projects", [])
+        issuetypes = projects[0].get("issuetypes", []) if projects else []
+        if not issuetypes:
+            raise JiraError(
+                f"no create metadata for {project}/{issue_type} "
+                "(check the project key and issue type name)"
+            )
+        field_map = issuetypes[0].get("fields", {})
+        fields = [
+            {"key": key, "name": meta.get("name"), "required": meta.get("required", False)}
+            for key, meta in field_map.items()
+        ]
+        return {"project": project, "issue_type": issue_type, "fields": fields}
+
     # -- write ----------------------------------------------------------------
 
     def add_comment(self, key: str, body: str) -> dict:

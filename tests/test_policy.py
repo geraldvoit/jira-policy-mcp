@@ -106,6 +106,21 @@ def test_fields_allowlist_empty_blocks_all_writes():
         policy.require_fields_in_scope({"summary": "ok"})
 
 
+def test_allow_all_fields_permits_any_field():
+    policy = make_policy(allow_all_fields=True)
+    # Any field, including arbitrary custom fields, is accepted.
+    policy.require_fields_in_scope({"summary": "ok", "customfield_10010": ["x"]})
+
+
+def test_create_capability_registers_create_and_metadata_tools():
+    policy = make_policy(capabilities={"create": True})
+    assert enabled_tool_names(policy) == {
+        "jira_get_issue",
+        "jira_create_issue",
+        "jira_get_create_fields",
+    }
+
+
 # -- JQL guard ----------------------------------------------------------------
 
 

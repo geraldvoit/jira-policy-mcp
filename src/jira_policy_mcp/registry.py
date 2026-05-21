@@ -15,7 +15,7 @@ CAPABILITY_TOOL_NAMES: dict[Capability, tuple[str, ...]] = {
     Capability.SEARCH: ("jira_search",),
     Capability.READ_COMMENTS: ("jira_get_comments",),
     Capability.ADD_COMMENT: ("jira_add_comment",),
-    Capability.CREATE: ("jira_create_issue",),
+    Capability.CREATE: ("jira_create_issue", "jira_get_create_fields"),
     Capability.EDIT: ("jira_update_issue",),
     Capability.TRANSITION: ("jira_transition_issue",),
     Capability.DELETE: ("jira_delete_issue",),

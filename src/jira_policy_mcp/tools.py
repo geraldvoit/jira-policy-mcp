@@ -84,6 +84,21 @@ def add_comment(policy: Policy, get_client: ClientFactory, key: str, body: str) 
     return result
 
 
+def get_create_fields(
+    policy: Policy, get_client: ClientFactory, project: str, issue_type: str
+) -> dict:
+    args = {"project": project, "issue_type": issue_type}
+
+    def check():
+        policy.require_capability(Capability.CREATE)
+        policy.require_project_in_scope(project)
+
+    _guard("jira_get_create_fields", args, check)
+    result = get_client().get_create_fields(project.upper(), issue_type)
+    audit.record("jira_get_create_fields", args, "allow")
+    return result
+
+
 def create_issue(
     policy: Policy, get_client: ClientFactory, project: str, issue_type: str, fields: dict
 ) -> dict:
