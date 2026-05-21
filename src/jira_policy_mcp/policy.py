@@ -27,6 +27,55 @@ ISSUE_KEY_RE = re.compile(r"^([A-Z][A-Z0-9]+)-(\d+)$")
 _ORDER_BY_RE = re.compile(r"\border\s+by\b", re.IGNORECASE)
 
 
+def _analyze_jql(jql: str) -> tuple[bool, int | None]:
+    """Single left-to-right pass over a JQL string.
+
+    Returns ``(balanced, order_by_start)``:
+
+    * ``balanced`` is False if a quoted string is left open, or if a ``)`` ever
+      appears before a matching ``(``. The latter is what an attacker uses to
+      break out of the ``(<user jql>)`` wrapper in :meth:`build_scoped_jql`
+      (e.g. ``x) OR (y``), pushing the project guard into a non-constraining OR
+      branch. A naive ``count('(') == count(')')`` check would *pass* such a
+      payload, so we reject on the first premature ``)`` instead.
+    * ``order_by_start`` is the index of the first *top-level* ``ORDER BY``
+      (outside quotes, at paren depth 0), or ``None``. Scanning for it here
+      avoids mistaking an ``order by`` inside a quoted value for the clause.
+
+    Parentheses and the ``order by`` keyword inside quoted string literals are
+    ignored; both single and double quotes are honoured, with ``\\`` escaping
+    the next character.
+    """
+    depth = 0
+    quote: str | None = None
+    escaped = False
+    order_by_start: int | None = None
+    i, n = 0, len(jql)
+    while i < n:
+        ch = jql[i]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return False, None
+        elif depth == 0 and order_by_start is None and _ORDER_BY_RE.match(jql, i):
+            order_by_start = i
+        i += 1
+    return (depth == 0 and quote is None), order_by_start
+
+
 class PolicyError(Exception):
     """Raised when a request is rejected by the configured policy."""
 
@@ -176,6 +225,14 @@ class Policy:
         a query like ``project = SECRET`` becomes ``(project = SECRET) AND
         project IN (ACME)`` and returns nothing — the allowlist always wins. A
         trailing ORDER BY is preserved at the end so the result stays valid JQL.
+
+        Because the guard is composed by string concatenation, the user clause
+        must not be able to break out of its surrounding parentheses. JQL gives
+        ``AND`` higher precedence than ``OR``, so a payload like
+        ``x) OR (project = SECRET`` would otherwise expand to
+        ``(x) OR (project = SECRET) AND project IN (ACME)`` and leave the first
+        ``OR`` branch unconstrained. We therefore reject any query whose
+        parentheses or quotes are unbalanced before composing the guard.
         """
         if not self.allowed_projects:
             raise PolicyError("search is not possible: no allowed_projects configured")
@@ -185,10 +242,16 @@ class Policy:
         if not jql:
             return f"{guard} ORDER BY updated DESC"
 
-        match = _ORDER_BY_RE.search(jql)
-        if match:
-            where = jql[: match.start()].strip()
-            order = jql[match.start():].strip()
+        balanced, order_by_start = _analyze_jql(jql)
+        if not balanced:
+            raise PolicyError(
+                "invalid JQL: unbalanced parentheses or quotes "
+                "(query may not break out of the project-scope guard)"
+            )
+
+        if order_by_start is not None:
+            where = jql[:order_by_start].strip()
+            order = jql[order_by_start:].strip()
         else:
             where, order = jql, ""
 
