@@ -155,3 +155,45 @@ def test_jql_guard_multiple_projects_sorted():
     policy = make_policy(allowed_projects=["DEMO", "ACME"])
     scoped = policy.build_scoped_jql("text ~ foo")
     assert "project IN (ACME, DEMO)" in scoped
+
+
+def test_jql_guard_rejects_paren_breakout():
+    # The classic scope-escape: a premature ``)`` plus ``OR`` would, without
+    # validation, expand to "(project = SECRET) OR (project = SECRET) AND
+    # project IN (ACME)" and leak SECRET, since AND binds tighter than OR.
+    policy = make_policy(allowed_projects=["ACME"])
+    with pytest.raises(PolicyError):
+        policy.build_scoped_jql("project = SECRET) OR (project = SECRET")
+
+
+def test_jql_guard_rejects_count_balanced_breakout():
+    # Parenthesis counts match here, but a ``)`` still precedes its ``(``, so a
+    # naive count check would miss the breakout. The prefix scan catches it.
+    policy = make_policy(allowed_projects=["ACME"])
+    with pytest.raises(PolicyError):
+        policy.build_scoped_jql("x) OR (y")
+
+
+def test_jql_guard_rejects_unbalanced_quotes():
+    policy = make_policy(allowed_projects=["ACME"])
+    with pytest.raises(PolicyError):
+        policy.build_scoped_jql('summary ~ "unterminated')
+
+
+def test_jql_guard_allows_balanced_parentheses():
+    policy = make_policy(allowed_projects=["ACME"])
+    scoped = policy.build_scoped_jql("(status = Open OR status = Reopened)")
+    assert scoped == "((status = Open OR status = Reopened)) AND project IN (ACME)"
+
+
+def test_jql_guard_ignores_order_by_inside_quotes():
+    # "order by" inside a quoted value must not be treated as the clause.
+    policy = make_policy(allowed_projects=["ACME"])
+    scoped = policy.build_scoped_jql('summary ~ "please order by date"')
+    assert scoped == '(summary ~ "please order by date") AND project IN (ACME)'
+
+
+def test_jql_guard_ignores_parens_inside_quotes():
+    policy = make_policy(allowed_projects=["ACME"])
+    scoped = policy.build_scoped_jql('summary ~ "a) OR (b"')
+    assert scoped == '(summary ~ "a) OR (b") AND project IN (ACME)'
