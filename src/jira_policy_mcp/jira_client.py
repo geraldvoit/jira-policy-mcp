@@ -23,6 +23,28 @@ class JiraError(Exception):
     """Raised when the Jira API returns an error or auth is misconfigured."""
 
 
+def _describe_field(field: dict) -> dict:
+    """Normalize a createmeta field entry to {key, name, required, type, allowed_values}.
+
+    ``allowed_values`` (id + value/name) is included only for fields that define
+    a fixed option set, so the caller can discover e.g. which option "iOS" is.
+    """
+    schema = field.get("schema") or {}
+    allowed = [
+        {"id": v.get("id"), "value": v.get("value") or v.get("name")}
+        for v in (field.get("allowedValues") or [])
+    ]
+    described = {
+        "key": field.get("fieldId"),
+        "name": field.get("name"),
+        "required": field.get("required", False),
+        "type": schema.get("custom") or schema.get("type"),
+    }
+    if allowed:
+        described["allowed_values"] = allowed
+    return described
+
+
 def _adf(text: str) -> dict:
     """Wrap plain text in a minimal Atlassian Document Format doc (Cloud v3)."""
     return {
@@ -142,14 +164,7 @@ class JiraClient:
             params={"maxResults": 200},
         ).json()
         field_list = meta.get("fields") or meta.get("values") or []
-        fields = [
-            {
-                "key": field.get("fieldId"),
-                "name": field.get("name"),
-                "required": field.get("required", False),
-            }
-            for field in field_list
-        ]
+        fields = [_describe_field(field) for field in field_list]
         return {"project": project, "issue_type": match.get("name"), "fields": fields}
 
     def _create_fields_datacenter(self, project: str, issue_type: str) -> dict:
@@ -168,8 +183,7 @@ class JiraClient:
             )
         field_map = issuetypes[0].get("fields", {})
         fields = [
-            {"key": key, "name": meta.get("name"), "required": meta.get("required", False)}
-            for key, meta in field_map.items()
+            _describe_field({"fieldId": key, **meta}) for key, meta in field_map.items()
         ]
         return {"project": project, "issue_type": issue_type, "fields": fields}
 

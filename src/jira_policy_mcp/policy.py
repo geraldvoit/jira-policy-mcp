@@ -55,6 +55,7 @@ class Policy:
     capabilities: frozenset[Capability]
     allowed_fields: frozenset[str]
     allow_all_fields: bool
+    create_defaults: dict
     max_search_results: int
 
     # -- construction ---------------------------------------------------------
@@ -95,6 +96,7 @@ class Policy:
             str(f).strip() for f in (data.get("allowed_fields") or []) if str(f).strip()
         )
         allow_all_fields = bool(data.get("allow_all_fields", False))
+        create_defaults = dict(data.get("create_defaults") or {})
         try:
             max_results = int(data.get("max_search_results", 25))
         except (TypeError, ValueError):
@@ -107,6 +109,7 @@ class Policy:
             capabilities=frozenset(enabled),
             allowed_fields=allowed_fields,
             allow_all_fields=allow_all_fields,
+            create_defaults=create_defaults,
             max_search_results=max(1, max_results),
         )
 

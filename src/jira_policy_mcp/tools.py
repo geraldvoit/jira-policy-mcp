@@ -108,11 +108,19 @@ def create_issue(
     def check():
         policy.require_capability(Capability.CREATE)
         policy.require_project_in_scope(project)
+        # Only the agent-supplied fields are subject to the allowlist;
+        # create_defaults are set by the policy author and trusted.
         policy.require_fields_in_scope(fields)
 
     _guard("jira_create_issue", args, check)
-    result = get_client().create_issue(project.upper(), issue_type, fields)
-    audit.record("jira_create_issue", {"project": project, "issue_type": issue_type}, "allow")
+    # Policy-enforced defaults override any agent-supplied value.
+    merged = {**fields, **policy.create_defaults}
+    result = get_client().create_issue(project.upper(), issue_type, merged)
+    audit.record(
+        "jira_create_issue",
+        {"project": project, "issue_type": issue_type, "fields": list(merged)},
+        "allow",
+    )
     return result
 
 

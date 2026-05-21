@@ -22,6 +22,10 @@ class FakeClient:
         self.calls.append(("get_issue", key))
         return {"key": key, "fields": {"summary": "hi"}}
 
+    def create_issue(self, project, issue_type, fields):
+        self.calls.append(("create_issue", project, issue_type, fields))
+        return {"key": f"{project}-1"}
+
 
 def make_policy(**overrides) -> Policy:
     data = {
@@ -57,3 +61,23 @@ def test_get_comments_requires_capability():
     policy = make_policy()  # read_comments off by default
     with pytest.raises(PolicyError):
         tools.get_comments(policy, lambda: FakeClient(), "ACME-41")
+
+
+def test_create_defaults_override_agent_fields():
+    policy = make_policy(
+        capabilities={"create": True},
+        allow_all_fields=True,
+        create_defaults={"customfield_10068": {"value": "iOS"}},
+    )
+    fake = FakeClient()
+    tools.create_issue(
+        policy,
+        lambda: fake,
+        "acme",
+        "Task",
+        {"summary": "x", "customfield_10068": {"value": "android"}},
+    )
+    _, project, issue_type, fields = fake.calls[-1]
+    assert project == "ACME"  # normalized
+    assert fields["summary"] == "x"
+    assert fields["customfield_10068"] == {"value": "iOS"}  # default wins

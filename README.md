@@ -71,7 +71,7 @@ Then `/mcp` in Claude Code should show the server connected, exposing only the t
 | `transition` | `jira_transition_issue(key, transition)` | off |
 | `delete` | `jira_delete_issue(key)` | off |
 
-For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (and which are required) before creating.
+For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field.
 
 ## Development
 

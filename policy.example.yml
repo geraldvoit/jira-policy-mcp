@@ -41,5 +41,12 @@ allowed_fields:
   - labels
 allow_all_fields: false
 
+# Fields automatically set on every jira_create_issue call. These are defined
+# by you (the policy author) and override any value the agent supplies, so a
+# field can be forced to a fixed value. Use jira_get_create_fields to find the
+# correct value shape (e.g. {value: "..."} or {id: "..."}) for custom fields.
+create_defaults: {}
+#   customfield_10068: { value: iOS }   # e.g. always set the "Team" field
+
 # Cap on jira_search result count.
 max_search_results: 25
