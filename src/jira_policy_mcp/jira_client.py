@@ -119,32 +119,36 @@ class JiraClient:
         return self._create_fields_datacenter(project, issue_type)
 
     def _create_fields_cloud(self, project: str, issue_type: str) -> dict:
-        types = self._request(
-            "GET", f"/issue/createmeta/{project}/issuetypes"
+        types_resp = self._request(
+            "GET",
+            f"/issue/createmeta/{project}/issuetypes",
+            params={"maxResults": 200},
         ).json()
+        # The endpoint returns the array under "issueTypes"; older/edge responses
+        # use "values". Accept either so we don't silently see "none".
+        issue_types = types_resp.get("issueTypes") or types_resp.get("values") or []
         match = next(
-            (
-                t
-                for t in types.get("values", [])
-                if t.get("name", "").lower() == issue_type.lower()
-            ),
+            (t for t in issue_types if t.get("name", "").lower() == issue_type.lower()),
             None,
         )
         if match is None:
-            names = ", ".join(t.get("name", "?") for t in types.get("values", [])) or "none"
+            names = ", ".join(t.get("name", "?") for t in issue_types) or "none"
             raise JiraError(
                 f"issue type {issue_type!r} not available for {project} (available: {names})"
             )
         meta = self._request(
-            "GET", f"/issue/createmeta/{project}/issuetypes/{match['id']}"
+            "GET",
+            f"/issue/createmeta/{project}/issuetypes/{match['id']}",
+            params={"maxResults": 200},
         ).json()
+        field_list = meta.get("fields") or meta.get("values") or []
         fields = [
             {
                 "key": field.get("fieldId"),
                 "name": field.get("name"),
                 "required": field.get("required", False),
             }
-            for field in meta.get("values", [])
+            for field in field_list
         ]
         return {"project": project, "issue_type": match.get("name"), "fields": fields}
 
