@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from dataclasses import dataclass
 
 import httpx
@@ -22,6 +23,78 @@ from .policy import Deployment, Policy
 
 class JiraError(Exception):
     """Raised when the Jira API returns an error or auth is misconfigured."""
+
+
+# Patterns that are essentially unique to Jira wiki markup — if any of these
+# appear in a rich-text field on Cloud, the caller almost certainly intended
+# wiki markup instead of Markdown. We refuse the request with a clear hint so
+# the mistake surfaces at write-time instead of after the ticket is rendered.
+#
+# Each entry: (regex, label shown to the caller, Markdown equivalent).
+# Kept conservative on purpose:
+#   - `{{ident}}` is matched only when the braces wrap a single bare identifier
+#     (no spaces), so legitimate Mustache/Jinja/Rust template snippets that
+#     usually have spaces or punctuation inside `{{ ... }}` slip through.
+#   - line-leading `bq.`/`h1.`…`h6.` only with a trailing space, so words like
+#     "bq.foo" or end-of-sentence "h1." don't false-positive.
+_WIKI_MARKUP_PATTERNS: tuple[tuple[re.Pattern[str], str, str], ...] = (
+    (
+        re.compile(r"\{\{[\w./\-]+\}\}"),
+        "{{identifier}}",
+        "use Markdown backticks: `identifier`",
+    ),
+    (
+        re.compile(r"\{code(?::[^}]+)?\}.*?\{code\}", re.DOTALL),
+        "{code}…{code}",
+        "use a Markdown fenced code block: ```lang\\n…\\n```",
+    ),
+    (
+        re.compile(r"\{noformat\}.*?\{noformat\}", re.DOTALL),
+        "{noformat}…{noformat}",
+        "use a Markdown fenced code block: ```\\n…\\n```",
+    ),
+    (
+        re.compile(r"\{quote\}.*?\{quote\}", re.DOTALL),
+        "{quote}…{quote}",
+        "use Markdown blockquote lines: `> …`",
+    ),
+    (
+        re.compile(r"\{panel(?::[^}]+)?\}.*?\{panel\}", re.DOTALL),
+        "{panel}…{panel}",
+        "panels aren't supported by ADF — rewrite as a heading + paragraph",
+    ),
+    (
+        re.compile(r"\{color:[^}]+\}.*?\{color\}", re.DOTALL),
+        "{color:…}…{color}",
+        "ADF text colour isn't exposed via Markdown — drop the colour wrapper",
+    ),
+    (
+        re.compile(r"(?m)^bq\. "),
+        "bq. (line-leading)",
+        "use a Markdown blockquote: `> …`",
+    ),
+    (
+        re.compile(r"(?m)^h[1-6]\. "),
+        "h1./h2./… (line-leading)",
+        "use a Markdown heading: `#`, `##`, …",
+    ),
+)
+
+
+def _detect_wiki_markup(text: str) -> list[str]:
+    """Return human-readable hints for each Jira wiki token found in ``text``.
+
+    Empty list means the input is clean (or empty). Each entry is of the form
+    ``"<label> — <suggested Markdown equivalent>"`` and is safe to include
+    verbatim in a user-facing error message.
+    """
+    if not text:
+        return []
+    findings: list[str] = []
+    for pattern, label, suggestion in _WIKI_MARKUP_PATTERNS:
+        if pattern.search(text):
+            findings.append(f"{label} — {suggestion}")
+    return findings
 
 
 def _describe_field(field: dict) -> dict:
@@ -86,6 +159,16 @@ class JiraClient:
         return self.deployment is Deployment.CLOUD
 
     def _body_field(self, text: str):
+        if self._is_cloud and isinstance(text, str):
+            findings = _detect_wiki_markup(text)
+            if findings:
+                lines = "\n".join(f"  - {f}" for f in findings)
+                raise JiraError(
+                    "rich-text input contains Jira wiki markup, which the server "
+                    "doesn't convert. On Cloud (/rest/api/3) pass Markdown — the "
+                    "server converts Markdown to ADF before sending it to Jira.\n"
+                    f"{lines}"
+                )
         return markdown_to_adf(text) if self._is_cloud else text
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:

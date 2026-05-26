@@ -77,6 +77,8 @@ For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `
 
 On Cloud, agents pass `description` (and other rich-text fields) as a **Markdown string** — the server converts it to ADF before sending to Jira. Supported: paragraphs, headings, `**bold**`, `*italic*`, `` `inline code` ``, fenced/indented code blocks (with language), bullet/ordered lists, links, blockquotes, hard breaks, and horizontal rules. Pre-built ADF dicts are also accepted and passed through unchanged.
 
+To stop common mistakes from silently shipping, the server **rejects** rich-text input on Cloud that contains unambiguous Jira-wiki tokens (`{{ident}}`, `{code}…{code}`, `{noformat}…{noformat}`, `{quote}…{quote}`, `{panel}…{panel}`, `{color:…}…{color}`, line-leading `bq.` and `h1.`–`h6.`). The error tells the agent the Markdown equivalent for each finding. Template-style `{{ ... }}` with spaces inside (Mustache, Jinja, etc.) is *not* flagged.
+
 On Data Center/Server, rich-text fields are sent verbatim — write the wiki markup the deployment expects.
 
 ## Development
