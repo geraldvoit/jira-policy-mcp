@@ -73,6 +73,12 @@ Then `/mcp` in Claude Code should show the server connected, exposing only the t
 
 For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field.
 
+### Rich-text fields (description, comment body)
+
+On Cloud, agents pass `description` (and other rich-text fields) as a **Markdown string** — the server converts it to ADF before sending to Jira. Supported: paragraphs, headings, `**bold**`, `*italic*`, `` `inline code` ``, fenced/indented code blocks (with language), bullet/ordered lists, links, blockquotes, hard breaks, and horizontal rules. Pre-built ADF dicts are also accepted and passed through unchanged.
+
+On Data Center/Server, rich-text fields are sent verbatim — write the wiki markup the deployment expects.
+
 ## Development
 
 ```bash
