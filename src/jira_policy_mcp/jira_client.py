@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from .adf import markdown_to_adf
 from .policy import Deployment, Policy
 
 
@@ -43,17 +44,6 @@ def _describe_field(field: dict) -> dict:
     if allowed:
         described["allowed_values"] = allowed
     return described
-
-
-def _adf(text: str) -> dict:
-    """Wrap plain text in a minimal Atlassian Document Format doc (Cloud v3)."""
-    return {
-        "type": "doc",
-        "version": 1,
-        "content": [
-            {"type": "paragraph", "content": [{"type": "text", "text": text}]}
-        ],
-    }
 
 
 @dataclass
@@ -96,7 +86,7 @@ class JiraClient:
         return self.deployment is Deployment.CLOUD
 
     def _body_field(self, text: str):
-        return _adf(text) if self._is_cloud else text
+        return markdown_to_adf(text) if self._is_cloud else text
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         try:
