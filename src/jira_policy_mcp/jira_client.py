@@ -195,7 +195,9 @@ class JiraClient:
             "maxResults": max_results,
             "fields": ["summary", "status", "issuetype", "updated"],
         }
-        return self._request("POST", "/search", json=payload).json()
+        # Cloud removed POST /search (410 Gone); /search/jql is its replacement.
+        path = "/search/jql" if self._is_cloud else "/search"
+        return self._request("POST", path, json=payload).json()
 
     def get_comments(self, key: str) -> dict:
         return self._request("GET", f"/issue/{key}/comment").json()
