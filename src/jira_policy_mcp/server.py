@@ -74,7 +74,11 @@ def build_server(policy: Policy) -> FastMCP:
         @mcp.tool()
         def jira_create_issue(project: str, issue_type: str, fields: dict) -> dict:
             """Create a new issue in an allowed project. Fields are subject to
-            the policy's field rules (allowed_fields / allow_all_fields)."""
+            the policy's field rules (allowed_fields / allow_all_fields).
+
+            `project` must be the key the user named for this ticket. Never
+            infer it from the repo, branch or earlier tickets; if the user
+            named none, ask before calling."""
             return tools.create_issue(policy, client.get, project, issue_type, fields)
 
     if policy.has(Capability.EDIT):

@@ -48,5 +48,14 @@ allow_all_fields: false
 create_defaults: {}
 #   customfield_10068: { value: iOS }   # e.g. always set the "Team" field
 
+# Per-project create defaults, layered over create_defaults for creates in that
+# project. Use this when a custom field's option ids differ between projects.
+# Every key must also be in allowed_projects.
+project_create_defaults: {}
+#   ACME:
+#     customfield_10068: { id: "10067" }
+#   DEMO:
+#     customfield_10068: { id: "12210" }
+
 # Cap on jira_search result count.
 max_search_results: 25

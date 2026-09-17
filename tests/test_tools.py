@@ -81,3 +81,20 @@ def test_create_defaults_override_agent_fields():
     assert project == "ACME"  # normalized
     assert fields["summary"] == "x"
     assert fields["customfield_10068"] == {"value": "iOS"}  # default wins
+
+
+def test_create_uses_defaults_of_target_project():
+    policy = make_policy(
+        allowed_projects=["ACME", "DEMO"],
+        capabilities={"create": True},
+        allowed_fields=["summary"],
+        project_create_defaults={
+            "ACME": {"customfield_10068": {"id": "1"}},
+            "DEMO": {"customfield_10068": {"id": "2"}},
+        },
+    )
+    fake = FakeClient()
+    tools.create_issue(policy, lambda: fake, "demo", "Task", {"summary": "x"})
+    _, project, _, fields = fake.calls[-1]
+    assert project == "DEMO"
+    assert fields["customfield_10068"] == {"id": "2"}
