@@ -121,6 +121,32 @@ def test_create_capability_registers_create_and_metadata_tools():
     }
 
 
+def test_project_create_defaults_overlay_policy_wide_defaults():
+    policy = make_policy(
+        allowed_projects=["ACME", "DEMO"],
+        create_defaults={"labels": ["agent"], "customfield_10068": {"id": "1"}},
+        project_create_defaults={"demo": {"customfield_10068": {"id": "2"}}},
+    )
+    assert policy.create_defaults_for("DEMO") == {
+        "labels": ["agent"],
+        "customfield_10068": {"id": "2"},
+    }
+    assert policy.create_defaults_for("acme") == {
+        "labels": ["agent"],
+        "customfield_10068": {"id": "1"},
+    }
+
+
+def test_project_create_defaults_reject_unlisted_project():
+    with pytest.raises(PolicyError):
+        make_policy(project_create_defaults={"DEMO": {"labels": ["x"]}})
+
+
+def test_project_create_defaults_reject_non_mapping_fields():
+    with pytest.raises(PolicyError):
+        make_policy(project_create_defaults={"ACME": ["labels"]})
+
+
 # -- JQL guard ----------------------------------------------------------------
 
 

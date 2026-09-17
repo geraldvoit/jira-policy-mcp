@@ -119,7 +119,7 @@ def create_issue(
 
     _guard("jira_create_issue", args, check)
     # Policy-enforced defaults override any agent-supplied value.
-    merged = {**fields, **policy.create_defaults}
+    merged = {**fields, **policy.create_defaults_for(project)}
     result = get_client().create_issue(project.upper(), issue_type, merged)
     audit.record(
         "jira_create_issue",

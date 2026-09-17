@@ -105,6 +105,7 @@ class Policy:
     allowed_fields: frozenset[str]
     allow_all_fields: bool
     create_defaults: dict
+    project_create_defaults: dict[str, dict]
     max_search_results: int
 
     # -- construction ---------------------------------------------------------
@@ -146,6 +147,9 @@ class Policy:
         )
         allow_all_fields = bool(data.get("allow_all_fields", False))
         create_defaults = dict(data.get("create_defaults") or {})
+        project_create_defaults = cls._parse_project_create_defaults(
+            data.get("project_create_defaults") or {}, allowed_projects
+        )
         try:
             max_results = int(data.get("max_search_results", 25))
         except (TypeError, ValueError):
@@ -159,8 +163,31 @@ class Policy:
             allowed_fields=allowed_fields,
             allow_all_fields=allow_all_fields,
             create_defaults=create_defaults,
+            project_create_defaults=project_create_defaults,
             max_search_results=max(1, max_results),
         )
+
+    @staticmethod
+    def _parse_project_create_defaults(
+        raw: object, allowed_projects: frozenset[str]
+    ) -> dict[str, dict]:
+        if not isinstance(raw, dict):
+            raise PolicyError("policy: project_create_defaults must be a mapping")
+        parsed: dict[str, dict] = {}
+        for project, fields in raw.items():
+            key = str(project).strip().upper()
+            # Catches typos: an entry for an unlisted project would never apply.
+            if key not in allowed_projects:
+                raise PolicyError(
+                    f"policy: project_create_defaults lists {key!r}, "
+                    "which is not in allowed_projects"
+                )
+            if not isinstance(fields, dict):
+                raise PolicyError(
+                    f"policy: project_create_defaults.{key} must be a mapping"
+                )
+            parsed[key] = dict(fields)
+        return parsed
 
     @classmethod
     def load(cls, path: str | Path) -> "Policy":
@@ -203,6 +230,13 @@ class Policy:
         project, normalized = self.parse_key(key)
         self.require_project_in_scope(project)
         return normalized
+
+    def create_defaults_for(self, project: str) -> dict:
+        """Policy-wide create_defaults, overlaid with the project's own."""
+        return {
+            **self.create_defaults,
+            **self.project_create_defaults.get(project.upper(), {}),
+        }
 
     def require_fields_in_scope(self, fields: dict) -> None:
         if self.allow_all_fields:
