@@ -303,16 +303,16 @@ class JiraClient:
     def link_issues(self, key: str, relation: str, other_key: str) -> str:
         """Create "<key> <relation> <other_key>"; return the link type's name."""
         link_type, key_is_outward = self._resolve_link_relation(relation)
-        # Jira reads a link as "<outwardIssue> <outward> <inwardIssue>", despite
-        # the names suggesting the opposite (Atlassian KB: "add issue links").
+        # Jira reads a link as "<inwardIssue> <outward> <outwardIssue>", verified
+        # on Cloud: inwardIssue=A, outwardIssue=B, type Blocks shows "A blocks B".
         source, target = (key, other_key) if key_is_outward else (other_key, key)
         self._request(
             "POST",
             "/issueLink",
             json={
                 "type": {"name": link_type["name"]},
-                "outwardIssue": {"key": source},
-                "inwardIssue": {"key": target},
+                "inwardIssue": {"key": source},
+                "outwardIssue": {"key": target},
             },
         )
         return link_type["name"]

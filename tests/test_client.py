@@ -72,7 +72,7 @@ def make_link_client():
     return JiraClient(deployment=Deployment.CLOUD, _client=http), posted
 
 
-# Per Atlassian's KB example, outwardIssue=X, inwardIssue=Y means "X blocks Y".
+# Verified on Jira Cloud: inwardIssue=X, outwardIssue=Y shows "X blocks Y".
 @pytest.mark.parametrize(
     ("relation", "blocker", "blocked"),
     [
@@ -87,8 +87,8 @@ def test_link_issues_maps_relation_to_link_direction(relation, blocker, blocked)
     assert posted == [
         {
             "type": {"name": "Blocks"},
-            "outwardIssue": {"key": blocker},
-            "inwardIssue": {"key": blocked},
+            "inwardIssue": {"key": blocker},
+            "outwardIssue": {"key": blocked},
         }
     ]
 
