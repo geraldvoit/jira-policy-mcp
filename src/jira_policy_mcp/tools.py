@@ -28,13 +28,19 @@ def _guard(tool: str, args: dict, check: Callable[[], None]) -> None:
 
 
 def _require_own(
-    policy: Policy, client: JiraClient, tool: str, args: dict, key: str
+    policy: Policy, client: JiraClient, tool: str, args: dict, *keys: str
 ) -> None:
-    """Under write_scope: own, refuse writes to issues the user didn't create."""
-    if policy.write_scope is WriteScope.OWN and not client.is_reported_by_me(key):
-        detail = f"{key} was not created by you (write_scope: own)"
-        audit.record(tool, args, "deny", detail)
-        raise PolicyError(detail)
+    """Under write_scope: own, refuse writes unless the user created one of the keys."""
+    if policy.write_scope is not WriteScope.OWN:
+        return
+    if any(client.is_reported_by_me(key) for key in keys):
+        return
+    if len(keys) == 1:
+        detail = f"{keys[0]} was not created by you (write_scope: own)"
+    else:
+        detail = f"neither {' nor '.join(keys)} was created by you (write_scope: own)"
+    audit.record(tool, args, "deny", detail)
+    raise PolicyError(detail)
 
 
 def get_issue(policy: Policy, get_client: ClientFactory, key: str) -> dict:
@@ -172,6 +178,30 @@ def transition_issue(policy: Policy, get_client: ClientFactory, key: str, transi
     client.transition_issue(normalized["value"], transition)
     audit.record("jira_transition_issue", {"key": normalized["value"], "transition": transition}, "allow")
     return {"key": normalized["value"], "transition": transition, "applied": True}
+
+
+def link_issues(
+    policy: Policy, get_client: ClientFactory, key: str, relation: str, other_key: str
+) -> dict:
+    args = {"key": key, "relation": relation, "other_key": other_key}
+    normalized = {"key": "", "other_key": ""}
+
+    def check():
+        policy.require_capability(Capability.LINK)
+        normalized["key"] = policy.require_key_in_scope(key)
+        normalized["other_key"] = policy.require_key_in_scope(other_key)
+
+    _guard("jira_link_issues", args, check)
+    client = get_client()
+    # A link shows on both issues; owning one of them is enough, so a new own
+    # ticket can point at an existing one ("is blocked by RADIO-1").
+    _require_own(
+        policy, client, "jira_link_issues", args, normalized["key"], normalized["other_key"]
+    )
+    link_type = client.link_issues(normalized["key"], relation, normalized["other_key"])
+    result = {**normalized, "relation": relation, "type": link_type}
+    audit.record("jira_link_issues", result, "allow")
+    return {**result, "linked": True}
 
 
 def delete_issue(policy: Policy, get_client: ClientFactory, key: str) -> dict:

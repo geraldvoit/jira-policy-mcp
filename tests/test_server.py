@@ -37,3 +37,8 @@ def test_enabling_capabilities_registers_their_tools():
 def test_disabled_delete_is_not_registered():
     policy = make_policy(capabilities={"read_by_key": True, "delete": False})
     assert "jira_delete_issue" not in _tool_names(policy)
+
+
+def test_link_capability_registers_link_tool():
+    assert "jira_link_issues" in _tool_names(make_policy(capabilities={"link": True}))
+    assert "jira_link_issues" not in _tool_names(make_policy())

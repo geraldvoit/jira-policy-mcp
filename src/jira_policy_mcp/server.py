@@ -97,6 +97,17 @@ def build_server(policy: Policy) -> FastMCP:
             Under write_scope: own, only issues the user created."""
             return tools.transition_issue(policy, client.get, key, transition)
 
+    if policy.has(Capability.LINK):
+
+        @mcp.tool()
+        def jira_link_issues(key: str, relation: str, other_key: str) -> dict:
+            """Link two issues so that "<key> <relation> <other_key>" holds,
+            e.g. key="ACME-2", relation="is blocked by", other_key="ACME-1".
+            `relation` is a link type's outward or inward description, or its
+            name (read as outward). Under write_scope: own, the user must have
+            created at least one of the two issues."""
+            return tools.link_issues(policy, client.get, key, relation, other_key)
+
     if policy.has(Capability.DELETE):
 
         @mcp.tool()

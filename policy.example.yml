@@ -29,11 +29,12 @@ capabilities:
   create: false                # jira_create_issue(...) + jira_get_create_fields(...)
   edit: false                  # jira_update_issue(key, fields)
   transition: false            # jira_transition_issue(key, transition)
+  link: false                  # jira_link_issues(key, relation, other_key)
   delete: false                # jira_delete_issue(key)     — keep off unless you really mean it
 
-# Which existing issues edit/transition/delete may touch:
+# Which existing issues edit/transition/link/delete may touch:
 #   any: every issue in allowed_projects (default)
-#   own: only issues whose reporter is the token's user
+#   own: only issues whose reporter is the token's user (link: one of the two)
 write_scope: any
 
 # Field write rules — only relevant once create/edit is enabled.

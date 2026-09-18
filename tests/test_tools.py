@@ -23,9 +23,12 @@ class FakeClient:
         return {"key": key, "fields": {"summary": "hi"}}
 
     reported_by_me = True
+    own_keys: set[str] | None = None  # when set, only these count as the user's
 
     def is_reported_by_me(self, key):
         self.calls.append(("is_reported_by_me", key))
+        if self.own_keys is not None:
+            return key in self.own_keys
         return self.reported_by_me
 
     def update_issue(self, key, fields):
@@ -33,6 +36,10 @@ class FakeClient:
 
     def transition_issue(self, key, transition):
         self.calls.append(("transition_issue", key, transition))
+
+    def link_issues(self, key, relation, other_key):
+        self.calls.append(("link_issues", key, relation, other_key))
+        return "Blocks"
 
     def create_issue(self, project, issue_type, fields):
         self.calls.append(("create_issue", project, issue_type, fields))
@@ -154,3 +161,55 @@ def test_write_scope_own_logs_denial(tmp_path):
         tools.update_issue(_write_policy(write_scope="own"), lambda: fake, "ACME-1", {"summary": "x"})
     log = (tmp_path / "jira-policy-mcp" / "audit.log").read_text()
     assert '"decision": "deny"' in log and "not created by you" in log
+
+
+def _link_policy(**overrides):
+    return make_policy(allowed_projects=["ACME", "DEMO"], capabilities={"link": True}, **overrides)
+
+
+def test_link_requires_capability():
+    with pytest.raises(PolicyError):
+        tools.link_issues(make_policy(), lambda: FakeClient(), "ACME-2", "is blocked by", "ACME-1")
+
+
+def test_link_refuses_other_key_out_of_scope_without_a_call():
+    factory_called = {"n": 0}
+
+    def factory():
+        factory_called["n"] += 1
+        return FakeClient()
+
+    with pytest.raises(PolicyError):
+        tools.link_issues(_link_policy(), factory, "ACME-2", "is blocked by", "SECRET-1")
+    assert factory_called["n"] == 0
+
+
+def test_link_passes_normalized_keys_and_relation():
+    fake = FakeClient()
+    result = tools.link_issues(_link_policy(), lambda: fake, " ACME-2 ", "is blocked by", "DEMO-1")
+    assert fake.calls == [("link_issues", "ACME-2", "is blocked by", "DEMO-1")]
+    assert result == {
+        "key": "ACME-2",
+        "other_key": "DEMO-1",
+        "relation": "is blocked by",
+        "type": "Blocks",
+        "linked": True,
+    }
+
+
+@pytest.mark.parametrize("own", [{"ACME-2"}, {"ACME-1"}])
+def test_link_under_write_scope_own_needs_only_one_own_issue(own):
+    fake = FakeClient()
+    fake.own_keys = own
+    tools.link_issues(_link_policy(write_scope="own"), lambda: fake, "ACME-2", "is blocked by", "ACME-1")
+    assert fake.calls[-1] == ("link_issues", "ACME-2", "is blocked by", "ACME-1")
+
+
+def test_link_under_write_scope_own_refuses_when_neither_is_own(tmp_path):
+    fake = FakeClient()
+    fake.own_keys = set()
+    with pytest.raises(PolicyError, match="neither ACME-2 nor ACME-1 was created by you"):
+        tools.link_issues(_link_policy(write_scope="own"), lambda: fake, "ACME-2", "blocks", "ACME-1")
+    assert all(call[0] == "is_reported_by_me" for call in fake.calls)
+    log = (tmp_path / "jira-policy-mcp" / "audit.log").read_text()
+    assert '"tool": "jira_link_issues"' in log and '"decision": "deny"' in log

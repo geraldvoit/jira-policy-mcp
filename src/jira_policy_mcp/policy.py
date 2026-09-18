@@ -88,6 +88,7 @@ class Capability(str, Enum):
     CREATE = "create"
     EDIT = "edit"
     TRANSITION = "transition"
+    LINK = "link"
     DELETE = "delete"
 
 

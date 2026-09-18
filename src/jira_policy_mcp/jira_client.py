@@ -214,6 +214,9 @@ class JiraClient:
     def get_transitions(self, key: str) -> dict:
         return self._request("GET", f"/issue/{key}/transitions").json()
 
+    def get_link_types(self) -> dict:
+        return self._request("GET", "/issueLinkType").json()
+
     def get_create_fields(self, project: str, issue_type: str) -> dict:
         """Return the fields available when creating an issue of this type.
 
@@ -297,6 +300,23 @@ class JiraClient:
             "POST", f"/issue/{key}/transitions", json={"transition": {"id": transition_id}}
         )
 
+    def link_issues(self, key: str, relation: str, other_key: str) -> str:
+        """Create "<key> <relation> <other_key>"; return the link type's name."""
+        link_type, key_is_outward = self._resolve_link_relation(relation)
+        # Jira reads a link as "<outwardIssue> <outward> <inwardIssue>", despite
+        # the names suggesting the opposite (Atlassian KB: "add issue links").
+        source, target = (key, other_key) if key_is_outward else (other_key, key)
+        self._request(
+            "POST",
+            "/issueLink",
+            json={
+                "type": {"name": link_type["name"]},
+                "outwardIssue": {"key": source},
+                "inwardIssue": {"key": target},
+            },
+        )
+        return link_type["name"]
+
     def delete_issue(self, key: str) -> None:
         self._request("DELETE", f"/issue/{key}")
 
@@ -327,6 +347,23 @@ class JiraClient:
         raise JiraError(
             f"transition {transition!r} not available for {key} (available: {names})"
         )
+
+    def _resolve_link_relation(self, relation: str) -> tuple[dict, bool]:
+        """Match a link description ("blocks", "is blocked by") or type name.
+
+        Returns the link type and whether the relation is its outward side.
+        """
+        wanted = relation.strip().lower()
+        available = self.get_link_types().get("issueLinkTypes", [])
+        for item in available:
+            if wanted in (item.get("outward", "").lower(), item.get("name", "").lower()):
+                return item, True
+            if wanted == item.get("inward", "").lower():
+                return item, False
+        names = ", ".join(
+            f"{t.get('outward', '?')} / {t.get('inward', '?')}" for t in available
+        ) or "none"
+        raise JiraError(f"link relation {relation!r} not available (available: {names})")
 
     def close(self) -> None:
         self._client.close()

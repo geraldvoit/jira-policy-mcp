@@ -18,6 +18,7 @@ CAPABILITY_TOOL_NAMES: dict[Capability, tuple[str, ...]] = {
     Capability.CREATE: ("jira_create_issue", "jira_get_create_fields"),
     Capability.EDIT: ("jira_update_issue",),
     Capability.TRANSITION: ("jira_transition_issue",),
+    Capability.LINK: ("jira_link_issues",),
     Capability.DELETE: ("jira_delete_issue",),
 }
 
