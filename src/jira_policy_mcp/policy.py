@@ -91,6 +91,12 @@ class Capability(str, Enum):
     DELETE = "delete"
 
 
+class WriteScope(str, Enum):
+    ANY = "any"
+    # Only issues whose reporter is the token's user.
+    OWN = "own"
+
+
 class Deployment(str, Enum):
     CLOUD = "cloud"
     DATACENTER = "datacenter"
@@ -107,6 +113,7 @@ class Policy:
     create_defaults: dict
     project_create_defaults: dict[str, dict]
     max_search_results: int
+    write_scope: WriteScope = WriteScope.ANY
 
     # -- construction ---------------------------------------------------------
 
@@ -151,6 +158,10 @@ class Policy:
             data.get("project_create_defaults") or {}, allowed_projects
         )
         try:
+            write_scope = WriteScope(data.get("write_scope", "any"))
+        except ValueError:
+            raise PolicyError("policy: write_scope must be 'any' or 'own'") from None
+        try:
             max_results = int(data.get("max_search_results", 25))
         except (TypeError, ValueError):
             raise PolicyError("policy: max_search_results must be an integer") from None
@@ -165,6 +176,7 @@ class Policy:
             create_defaults=create_defaults,
             project_create_defaults=project_create_defaults,
             max_search_results=max(1, max_results),
+            write_scope=write_scope,
         )
 
     @staticmethod

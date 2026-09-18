@@ -13,7 +13,7 @@ from typing import Callable
 
 from . import audit
 from .jira_client import JiraClient
-from .policy import Capability, Policy, PolicyError
+from .policy import Capability, Policy, PolicyError, WriteScope
 
 ClientFactory = Callable[[], JiraClient]
 
@@ -25,6 +25,16 @@ def _guard(tool: str, args: dict, check: Callable[[], None]) -> None:
     except PolicyError as exc:
         audit.record(tool, args, "deny", str(exc))
         raise
+
+
+def _require_own(
+    policy: Policy, client: JiraClient, tool: str, args: dict, key: str
+) -> None:
+    """Under write_scope: own, refuse writes to issues the user didn't create."""
+    if policy.write_scope is WriteScope.OWN and not client.is_reported_by_me(key):
+        detail = f"{key} was not created by you (write_scope: own)"
+        audit.record(tool, args, "deny", detail)
+        raise PolicyError(detail)
 
 
 def get_issue(policy: Policy, get_client: ClientFactory, key: str) -> dict:
@@ -141,7 +151,9 @@ def update_issue(policy: Policy, get_client: ClientFactory, key: str, fields: di
         policy.require_fields_in_scope(fields)
 
     _guard("jira_update_issue", args, check)
-    get_client().update_issue(normalized["value"], fields)
+    client = get_client()
+    _require_own(policy, client, "jira_update_issue", args, normalized["value"])
+    client.update_issue(normalized["value"], fields)
     audit.record("jira_update_issue", {"key": normalized["value"]}, "allow")
     return {"key": normalized["value"], "updated": True}
 
@@ -155,7 +167,9 @@ def transition_issue(policy: Policy, get_client: ClientFactory, key: str, transi
         normalized["value"] = policy.require_key_in_scope(key)
 
     _guard("jira_transition_issue", args, check)
-    get_client().transition_issue(normalized["value"], transition)
+    client = get_client()
+    _require_own(policy, client, "jira_transition_issue", args, normalized["value"])
+    client.transition_issue(normalized["value"], transition)
     audit.record("jira_transition_issue", {"key": normalized["value"], "transition": transition}, "allow")
     return {"key": normalized["value"], "transition": transition, "applied": True}
 
@@ -169,6 +183,8 @@ def delete_issue(policy: Policy, get_client: ClientFactory, key: str) -> dict:
         normalized["value"] = policy.require_key_in_scope(key)
 
     _guard("jira_delete_issue", args, check)
-    get_client().delete_issue(normalized["value"])
+    client = get_client()
+    _require_own(policy, client, "jira_delete_issue", args, normalized["value"])
+    client.delete_issue(normalized["value"])
     audit.record("jira_delete_issue", {"key": normalized["value"]}, "allow")
     return {"key": normalized["value"], "deleted": True}
