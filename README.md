@@ -7,7 +7,7 @@ Jira has no equivalent of GitHub's fine-grained tokens: an API token inherits *a
 This server sits in front of the Jira REST API and enforces a policy you control:
 
 - **Which projects** the agent may touch (allowlist).
-- **Which operations** are even possible (read by key, search, comment, create, edit, transition, delete) — each off by default.
+- **Which operations** are even possible (read by key, search, comment, create, edit, transition, link, delete) — each off by default.
 
 The Jira credential lives only in this server's process. The agent never sees it.
 
@@ -69,9 +69,12 @@ Then `/mcp` in Claude Code should show the server connected, exposing only the t
 | `create` | `jira_create_issue(project, issue_type, fields)` + `jira_get_create_fields(project, issue_type)` | off |
 | `edit` | `jira_update_issue(key, fields)` | off |
 | `transition` | `jira_transition_issue(key, transition)` | off |
+| `link` | `jira_link_issues(key, relation, other_key)` | off |
 | `delete` | `jira_delete_issue(key)` | off |
 
-`write_scope: own` limits `edit`, `transition` and `delete` to issues whose reporter is the token's user; before each write the server compares the issue's reporter with `/myself` and logs refusals. On Cloud this needs the token scope `read:jira-user` besides `read:jira-work`/`write:jira-work`. The default `any` allows every issue in the allowed projects.
+`write_scope: own` limits `edit`, `transition` and `delete` to issues whose reporter is the token's user, and `link` to pairs where the user created at least one of the two; before each write the server compares the issue's reporter with `/myself` and logs refusals. On Cloud this needs the token scope `read:jira-user` besides `read:jira-work`/`write:jira-work`. The default `any` allows every issue in the allowed projects.
+
+`jira_link_issues` reads as "`key` `relation` `other_key`", e.g. `RADIO-2` `is blocked by` `RADIO-1`. `relation` is a link type's outward or inward description, or its name (read as outward); unknown relations fail with the list Jira offers. Both keys must be in `allowed_projects`.
 
 For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field. `project_create_defaults` layers per-project values on top, for fields whose option ids differ between projects.
 
