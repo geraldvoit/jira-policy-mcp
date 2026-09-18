@@ -199,6 +199,15 @@ class JiraClient:
         path = "/search/jql" if self._is_cloud else "/search"
         return self._request("POST", path, json=payload).json()
 
+    def is_reported_by_me(self, key: str) -> bool:
+        # Deliberately not via search: policies may forbid the search endpoint.
+        issue = self._request("GET", f"/issue/{key}", params={"fields": "reporter"}).json()
+        reporter = (issue.get("fields") or {}).get("reporter") or {}
+        me = self._request("GET", "/myself").json()
+        # Cloud identifies users by accountId; Data Center by key.
+        id_field = "accountId" if self._is_cloud else "key"
+        return bool(reporter.get(id_field)) and reporter.get(id_field) == me.get(id_field)
+
     def get_comments(self, key: str) -> dict:
         return self._request("GET", f"/issue/{key}/comment").json()
 

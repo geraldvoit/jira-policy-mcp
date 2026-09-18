@@ -22,6 +22,18 @@ class FakeClient:
         self.calls.append(("get_issue", key))
         return {"key": key, "fields": {"summary": "hi"}}
 
+    reported_by_me = True
+
+    def is_reported_by_me(self, key):
+        self.calls.append(("is_reported_by_me", key))
+        return self.reported_by_me
+
+    def update_issue(self, key, fields):
+        self.calls.append(("update_issue", key, fields))
+
+    def transition_issue(self, key, transition):
+        self.calls.append(("transition_issue", key, transition))
+
     def create_issue(self, project, issue_type, fields):
         self.calls.append(("create_issue", project, issue_type, fields))
         return {"key": f"{project}-1"}
@@ -98,3 +110,47 @@ def test_create_uses_defaults_of_target_project():
     _, project, _, fields = fake.calls[-1]
     assert project == "DEMO"
     assert fields["customfield_10068"] == {"id": "2"}
+
+
+def _write_policy(**overrides):
+    return make_policy(
+        capabilities={"edit": True, "transition": True},
+        allowed_fields=["summary"],
+        **overrides,
+    )
+
+
+def test_write_scope_own_refuses_issue_created_by_someone_else():
+    fake = FakeClient()
+    fake.reported_by_me = False
+    policy = _write_policy(write_scope="own")
+    with pytest.raises(PolicyError):
+        tools.update_issue(policy, lambda: fake, "ACME-1", {"summary": "x"})
+    with pytest.raises(PolicyError):
+        tools.transition_issue(policy, lambda: fake, "ACME-1", "Done")
+    assert [c[0] for c in fake.calls] == ["is_reported_by_me", "is_reported_by_me"]
+
+
+def test_write_scope_own_allows_own_issue():
+    fake = FakeClient()
+    policy = _write_policy(write_scope="own")
+    tools.update_issue(policy, lambda: fake, "ACME-1", {"summary": "x"})
+    assert fake.calls == [
+        ("is_reported_by_me", "ACME-1"),
+        ("update_issue", "ACME-1", {"summary": "x"}),
+    ]
+
+
+def test_write_scope_any_skips_ownership_check():
+    fake = FakeClient()
+    tools.transition_issue(_write_policy(), lambda: fake, "ACME-1", "Done")
+    assert fake.calls == [("transition_issue", "ACME-1", "Done")]
+
+
+def test_write_scope_own_logs_denial(tmp_path):
+    fake = FakeClient()
+    fake.reported_by_me = False
+    with pytest.raises(PolicyError):
+        tools.update_issue(_write_policy(write_scope="own"), lambda: fake, "ACME-1", {"summary": "x"})
+    log = (tmp_path / "jira-policy-mcp" / "audit.log").read_text()
+    assert '"decision": "deny"' in log and "not created by you" in log

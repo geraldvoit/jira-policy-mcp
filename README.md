@@ -71,6 +71,8 @@ Then `/mcp` in Claude Code should show the server connected, exposing only the t
 | `transition` | `jira_transition_issue(key, transition)` | off |
 | `delete` | `jira_delete_issue(key)` | off |
 
+`write_scope: own` limits `edit`, `transition` and `delete` to issues whose reporter is the token's user; before each write the server compares the issue's reporter with `/myself` and logs refusals. On Cloud this needs the token scope `read:jira-user` besides `read:jira-work`/`write:jira-work`. The default `any` allows every issue in the allowed projects.
+
 For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field. `project_create_defaults` layers per-project values on top, for fields whose option ids differ between projects.
 
 ### Rich-text fields (description, comment body)

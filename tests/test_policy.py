@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from jira_policy_mcp.policy import Capability, Deployment, Policy, PolicyError
+from jira_policy_mcp.policy import Capability, Deployment, Policy, PolicyError, WriteScope
 from jira_policy_mcp.registry import enabled_tool_names
 
 
@@ -145,6 +145,15 @@ def test_project_create_defaults_reject_unlisted_project():
 def test_project_create_defaults_reject_non_mapping_fields():
     with pytest.raises(PolicyError):
         make_policy(project_create_defaults={"ACME": ["labels"]})
+
+
+def test_write_scope_defaults_to_any():
+    assert make_policy().write_scope is WriteScope.ANY
+
+
+def test_write_scope_rejects_unknown_value():
+    with pytest.raises(PolicyError):
+        make_policy(write_scope="mine")
 
 
 # -- JQL guard ----------------------------------------------------------------

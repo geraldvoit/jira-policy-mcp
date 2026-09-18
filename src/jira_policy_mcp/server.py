@@ -86,14 +86,15 @@ def build_server(policy: Policy) -> FastMCP:
         @mcp.tool()
         def jira_update_issue(key: str, fields: dict) -> dict:
             """Update fields on an existing issue. Only policy-allowed fields
-            may be set."""
+            may be set. Under write_scope: own, only issues the user created."""
             return tools.update_issue(policy, client.get, key, fields)
 
     if policy.has(Capability.TRANSITION):
 
         @mcp.tool()
         def jira_transition_issue(key: str, transition: str) -> dict:
-            """Move an issue through a workflow transition (by id or name)."""
+            """Move an issue through a workflow transition (by id or name).
+            Under write_scope: own, only issues the user created."""
             return tools.transition_issue(policy, client.get, key, transition)
 
     if policy.has(Capability.DELETE):

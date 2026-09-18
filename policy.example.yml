@@ -31,6 +31,11 @@ capabilities:
   transition: false            # jira_transition_issue(key, transition)
   delete: false                # jira_delete_issue(key)     — keep off unless you really mean it
 
+# Which existing issues edit/transition/delete may touch:
+#   any: every issue in allowed_projects (default)
+#   own: only issues whose reporter is the token's user
+write_scope: any
+
 # Field write rules — only relevant once create/edit is enabled.
 #   allowed_fields:    the agent may only set these fields, or
 #   allow_all_fields:  set true to allow any field the project accepts
