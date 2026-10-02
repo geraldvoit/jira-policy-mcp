@@ -41,6 +41,14 @@ class FakeClient:
         self.calls.append(("link_issues", key, relation, other_key))
         return "Blocks"
 
+    def get_create_fields(self, project, issue_type):
+        fields = [
+            {"key": "summary", "required": True},
+            {"key": "labels", "required": False},
+            {"key": "resolution", "required": False, "allowed_values": [{"id": "1"}]},
+        ]
+        return {"project": project, "issue_type": issue_type, "fields": fields}
+
     def create_issue(self, project, issue_type, fields):
         self.calls.append(("create_issue", project, issue_type, fields))
         return {"key": f"{project}-1"}
@@ -213,3 +221,15 @@ def test_link_under_write_scope_own_refuses_when_neither_is_own(tmp_path):
     assert all(call[0] == "is_reported_by_me" for call in fake.calls)
     log = (tmp_path / "jira-policy-mcp" / "audit.log").read_text()
     assert '"tool": "jira_link_issues"' in log and '"decision": "deny"' in log
+
+
+def test_create_fields_lists_only_writable_and_required_fields():
+    policy = make_policy(capabilities={"create": True}, allowed_fields=["labels"])
+    result = tools.get_create_fields(policy, lambda: FakeClient(), "ACME", "Task")
+    assert [f["key"] for f in result["fields"]] == ["summary", "labels"]
+
+
+def test_create_fields_lists_everything_when_all_fields_are_allowed():
+    policy = make_policy(capabilities={"create": True}, allow_all_fields=True)
+    result = tools.get_create_fields(policy, lambda: FakeClient(), "ACME", "Task")
+    assert len(result["fields"]) == 3

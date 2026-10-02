@@ -76,11 +76,13 @@ Then `/mcp` in Claude Code should show the server connected, exposing only the t
 
 `jira_link_issues` reads as "`key` `relation` `other_key`", e.g. `RADIO-2` `is blocked by` `RADIO-1`. `relation` is a link type's outward or inward description, or its name (read as outward); unknown relations fail with the list Jira offers. Both keys must be in `allowed_projects`.
 
-For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field. `project_create_defaults` layers per-project values on top, for fields whose option ids differ between projects.
+For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating; it lists only fields the policy lets the agent write, plus required ones. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field. `project_create_defaults` layers per-project values on top, for fields whose option ids differ between projects.
 
 ### Rich-text fields (description, comment body)
 
 On Cloud, agents pass `description` (and other rich-text fields) as a **Markdown string** — the server converts it to ADF before sending to Jira. Supported: paragraphs, headings, `**bold**`, `*italic*`, `` `inline code` ``, fenced/indented code blocks (with language), bullet/ordered lists, links, blockquotes, hard breaks, and horizontal rules. Pre-built ADF dicts are also accepted and passed through unchanged.
+
+Reads go the other way: `jira_get_issue` and `jira_get_comments` return flat objects with the description and comment bodies as Markdown instead of raw ADF, which keeps them several times smaller in the agent's context.
 
 To stop common mistakes from silently shipping, the server **rejects** rich-text input on Cloud that contains unambiguous Jira-wiki tokens (`{{ident}}`, `{code}…{code}`, `{noformat}…{noformat}`, `{quote}…{quote}`, `{panel}…{panel}`, `{color:…}…{color}`, line-leading `bq.` and `h1.`–`h6.`). The error tells the agent the Markdown equivalent for each finding. Template-style `{{ ... }}` with spaces inside (Mustache, Jinja, etc.) is *not* flagged.
 
