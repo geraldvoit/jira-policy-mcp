@@ -168,3 +168,94 @@ def _attr(node: SyntaxTreeNode, key: str):
     if not attrs:
         return None
     return attrs.get(key)
+
+
+# -- ADF -> Markdown (read direction) ------------------------------------------
+# Raw ADF is several times larger than its text; agents only need the content.
+
+
+def adf_to_markdown(doc) -> str:
+    """Render an ADF document as Markdown. Strings (Data Center) pass through."""
+    if not isinstance(doc, dict):
+        return doc or ""
+    return "\n\n".join(b for b in (_md_block(n) for n in doc.get("content") or []) if b)
+
+
+def _md_block(node: dict, depth: int = 0) -> str:
+    kind = node.get("type")
+    children = node.get("content") or []
+    if kind == "paragraph":
+        return _md_inline(children)
+    if kind == "heading":
+        level = (node.get("attrs") or {}).get("level", 1)
+        return "#" * level + " " + _md_inline(children)
+    if kind == "codeBlock":
+        lang = (node.get("attrs") or {}).get("language") or ""
+        return f"```{lang}\n{_md_inline(children)}\n```"
+    if kind == "blockquote":
+        inner = "\n\n".join(_md_block(c, depth) for c in children)
+        return "\n".join("> " + line for line in inner.splitlines())
+    if kind in ("bulletList", "orderedList"):
+        lines = []
+        for i, item in enumerate(children, start=1):
+            marker = f"{i}." if kind == "orderedList" else "-"
+            parts = [_md_block(c, depth + 1) for c in item.get("content") or []]
+            text = "\n".join(p for p in parts if p)
+            indent = "  " * depth
+            lines.append(f"{indent}{marker} {text.lstrip()}")
+        return "\n".join(lines)
+    if kind == "rule":
+        return "---"
+    if kind == "table":
+        rows = [[_md_cell(cell) for cell in row.get("content") or []] for row in children]
+        if rows:
+            rows.insert(1, ["---"] * len(rows[0]))
+        return "\n".join("| " + " | ".join(row) + " |" for row in rows)
+    if kind in ("mediaSingle", "mediaGroup", "media"):
+        return "[attachment]"
+    # Panels, expands and unknown blocks: keep their text.
+    return "\n\n".join(b for b in (_md_block(c, depth) for c in children) if b)
+
+
+def _md_cell(cell: dict) -> str:
+    return " ".join(_md_block(c) for c in cell.get("content") or []).replace("\n", " ")
+
+
+def _md_inline(nodes: list) -> str:
+    out = []
+    for node in nodes:
+        kind = node.get("type")
+        attrs = node.get("attrs") or {}
+        if kind == "text":
+            out.append(_md_marks(node.get("text", ""), node.get("marks") or []))
+        elif kind == "hardBreak":
+            out.append("\n")
+        elif kind == "mention":
+            out.append(attrs.get("text") or "@user")
+        elif kind == "emoji":
+            out.append(attrs.get("text") or attrs.get("shortName") or "")
+        elif kind in ("inlineCard", "blockCard"):
+            out.append(attrs.get("url") or "")
+        elif kind == "status":
+            out.append(f"[{attrs.get('text', '')}]")
+        elif kind == "date":
+            out.append(str(attrs.get("timestamp", "")))
+        else:
+            out.append(_md_inline(node.get("content") or []))
+    return "".join(out)
+
+
+def _md_marks(text: str, marks: list) -> str:
+    for mark in marks:
+        kind = mark.get("type")
+        if kind == "code":
+            text = f"`{text}`"
+        elif kind == "strong":
+            text = f"**{text}**"
+        elif kind == "em":
+            text = f"*{text}*"
+        elif kind == "strike":
+            text = f"~~{text}~~"
+        elif kind == "link":
+            text = f"[{text}]({(mark.get('attrs') or {}).get('href', '')})"
+    return text
