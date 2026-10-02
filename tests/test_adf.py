@@ -1,8 +1,8 @@
-"""Markdown -> ADF conversion tests."""
+"""Markdown <-> ADF conversion tests."""
 
 from __future__ import annotations
 
-from jira_policy_mcp.adf import markdown_to_adf
+from jira_policy_mcp.adf import adf_to_markdown, markdown_to_adf
 
 
 def test_empty_input_yields_empty_paragraph_doc():
@@ -197,3 +197,64 @@ def _has_mark(doc: dict, mark_type: str, contains_text: str) -> bool:
 
     walk(doc)
     return found["value"]
+
+
+# -- ADF -> Markdown ------------------------------------------------------------
+
+
+def test_adf_to_markdown_round_trips_common_markdown():
+    text = (
+        "# Title\n\n"
+        "Some **bold**, *em*, `code` and [a link](https://x.test).\n\n"
+        "- one\n- two\n  - nested\n\n"
+        "1. first\n2. second\n\n"
+        "```swift\nlet x = 1\n```\n\n"
+        "> quoted"
+    )
+    assert adf_to_markdown(markdown_to_adf(text)) == text
+
+
+def test_adf_to_markdown_renders_jira_only_nodes():
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {"type": "mention", "attrs": {"text": "@Jane"}},
+                    {"type": "text", "text": " see "},
+                    {"type": "inlineCard", "attrs": {"url": "https://x.test/1"}},
+                ],
+            },
+            {"type": "mediaSingle", "content": [{"type": "media"}]},
+            {
+                "type": "panel",
+                "content": [{"type": "paragraph", "content": [{"type": "text", "text": "note"}]}],
+            },
+        ],
+    }
+    assert adf_to_markdown(doc) == "@Jane see https://x.test/1\n\n[attachment]\n\nnote"
+
+
+def test_adf_to_markdown_renders_tables():
+    def cell(text):
+        return {"type": "tableCell", "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]}
+
+    doc = {
+        "type": "doc",
+        "content": [
+            {
+                "type": "table",
+                "content": [
+                    {"type": "tableRow", "content": [cell("a"), cell("b")]},
+                    {"type": "tableRow", "content": [cell("1"), cell("2")]},
+                ],
+            }
+        ],
+    }
+    assert adf_to_markdown(doc) == "| a | b |\n| --- | --- |\n| 1 | 2 |"
+
+
+def test_adf_to_markdown_passes_strings_and_none_through():
+    assert adf_to_markdown("plain wiki text") == "plain wiki text"
+    assert adf_to_markdown(None) == ""

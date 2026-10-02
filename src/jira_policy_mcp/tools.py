@@ -115,6 +115,11 @@ def get_create_fields(
 
     _guard("jira_get_create_fields", args, check)
     result = get_client().get_create_fields(project.upper(), issue_type)
+    if not policy.allow_all_fields:
+        # Fields the agent can't write are noise; required ones stay as context.
+        result["fields"] = [
+            f for f in result["fields"] if f["required"] or f["key"] in policy.allowed_fields
+        ]
     audit.record("jira_get_create_fields", args, "allow")
     return result
 

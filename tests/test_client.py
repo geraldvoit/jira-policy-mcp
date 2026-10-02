@@ -98,3 +98,52 @@ def test_link_issues_rejects_unknown_relation_before_posting():
     with pytest.raises(JiraError, match="blocks / is blocked by"):
         client.link_issues("ACME-2", "depends on", "ACME-1")
     assert posted == []
+
+
+def make_read_client(payload: dict):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=payload)
+
+    http = httpx.Client(base_url="https://example.test", transport=httpx.MockTransport(handler))
+    return JiraClient(deployment=Deployment.CLOUD, _client=http)
+
+
+def test_get_issue_is_flattened_with_markdown_description():
+    adf = {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Do it"}]}]}
+    client = make_read_client(
+        {
+            "key": "ACME-1",
+            "self": "https://example.test/rest/api/3/issue/1",
+            "fields": {
+                "summary": "Title",
+                "status": {"name": "In Progress", "iconUrl": "https://x.test/i.png"},
+                "issuetype": {"name": "Task", "avatarId": 1},
+                "assignee": {"displayName": "Jane", "accountId": "a1"},
+                "labels": ["ios"],
+                "updated": "2026-10-01",
+                "description": adf,
+            },
+        }
+    )
+    assert client.get_issue("ACME-1") == {
+        "key": "ACME-1",
+        "summary": "Title",
+        "status": "In Progress",
+        "issue_type": "Task",
+        "assignee": "Jane",
+        "labels": ["ios"],
+        "updated": "2026-10-01",
+        "description": "Do it",
+    }
+
+
+def test_get_comments_keeps_author_date_and_markdown_body():
+    body = {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "LGTM"}]}]}
+    client = make_read_client(
+        {"total": 1, "comments": [{"author": {"displayName": "Jane"}, "created": "2026-10-01", "body": body}]}
+    )
+    assert client.get_comments("ACME-1") == {
+        "key": "ACME-1",
+        "total": 1,
+        "comments": [{"author": "Jane", "created": "2026-10-01", "body": "LGTM"}],
+    }

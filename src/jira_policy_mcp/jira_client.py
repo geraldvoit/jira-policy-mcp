@@ -17,7 +17,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from .adf import markdown_to_adf
+from .adf import adf_to_markdown, markdown_to_adf
 from .policy import Deployment, Policy
 
 
@@ -119,6 +119,10 @@ def _describe_field(field: dict) -> dict:
     return described
 
 
+def _name(obj, attr: str = "name"):
+    return (obj or {}).get(attr)
+
+
 @dataclass
 class JiraClient:
     deployment: Deployment
@@ -187,7 +191,19 @@ class JiraClient:
 
     def get_issue(self, key: str) -> dict:
         params = {"fields": "summary,status,issuetype,assignee,description,labels,updated"}
-        return self._request("GET", f"/issue/{key}", params=params).json()
+        issue = self._request("GET", f"/issue/{key}", params=params).json()
+        # Flattened: the raw response carries icon URLs, self links and ADF.
+        fields = issue.get("fields") or {}
+        return {
+            "key": issue.get("key", key),
+            "summary": fields.get("summary"),
+            "status": _name(fields.get("status")),
+            "issue_type": _name(fields.get("issuetype")),
+            "assignee": _name(fields.get("assignee"), "displayName"),
+            "labels": fields.get("labels") or [],
+            "updated": fields.get("updated"),
+            "description": adf_to_markdown(fields.get("description")),
+        }
 
     def search(self, jql: str, max_results: int) -> dict:
         payload = {
@@ -209,7 +225,16 @@ class JiraClient:
         return bool(reporter.get(id_field)) and reporter.get(id_field) == me.get(id_field)
 
     def get_comments(self, key: str) -> dict:
-        return self._request("GET", f"/issue/{key}/comment").json()
+        data = self._request("GET", f"/issue/{key}/comment").json()
+        comments = [
+            {
+                "author": _name(c.get("author"), "displayName"),
+                "created": c.get("created"),
+                "body": adf_to_markdown(c.get("body")),
+            }
+            for c in data.get("comments") or []
+        ]
+        return {"key": key, "total": data.get("total", len(comments)), "comments": comments}
 
     def get_transitions(self, key: str) -> dict:
         return self._request("GET", f"/issue/{key}/transitions").json()
