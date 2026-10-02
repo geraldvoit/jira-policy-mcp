@@ -108,13 +108,15 @@ def get_create_fields(
     policy: Policy, get_client: ClientFactory, project: str, issue_type: str
 ) -> dict:
     args = {"project": project, "issue_type": issue_type}
+    normalized = {"issue_type": ""}
 
     def check():
         policy.require_capability(Capability.CREATE)
         policy.require_project_in_scope(project)
+        normalized["issue_type"] = policy.require_issue_type_allowed(issue_type)
 
     _guard("jira_get_create_fields", args, check)
-    result = get_client().get_create_fields(project.upper(), issue_type)
+    result = get_client().get_create_fields(project.upper(), normalized["issue_type"])
     if not policy.allow_all_fields:
         # Fields the agent can't write are noise; required ones stay as context.
         result["fields"] = [
@@ -130,10 +132,12 @@ def create_issue(
     fields = fields or {}
     # Log only field names, never their (possibly sensitive) values.
     args = {"project": project, "issue_type": issue_type, "fields": list(fields)}
+    normalized = {"issue_type": ""}
 
     def check():
         policy.require_capability(Capability.CREATE)
         policy.require_project_in_scope(project)
+        normalized["issue_type"] = policy.require_issue_type_allowed(issue_type)
         # Only the agent-supplied fields are subject to the allowlist;
         # create_defaults are set by the policy author and trusted.
         policy.require_fields_in_scope(fields)
@@ -141,6 +145,7 @@ def create_issue(
     _guard("jira_create_issue", args, check)
     # Policy-enforced defaults override any agent-supplied value.
     merged = {**fields, **policy.create_defaults_for(project)}
+    issue_type = normalized["issue_type"]
     result = get_client().create_issue(project.upper(), issue_type, merged)
     audit.record(
         "jira_create_issue",

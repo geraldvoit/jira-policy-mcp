@@ -76,7 +76,7 @@ Then `/mcp` in Claude Code should show the server connected, exposing only the t
 
 `jira_link_issues` reads as "`key` `relation` `other_key`", e.g. `RADIO-2` `is blocked by` `RADIO-1`. `relation` is a link type's outward or inward description, or its name (read as outward); unknown relations fail with the list Jira offers. Both keys must be in `allowed_projects`.
 
-For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating; it lists only fields the policy lets the agent write, plus required ones. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field. `project_create_defaults` layers per-project values on top, for fields whose option ids differ between projects.
+For `create`/`edit`, writable fields are restricted to `allowed_fields` unless `allow_all_fields: true` is set. `jira_get_create_fields` lets the agent discover which fields a project/issue type accepts (with their type and allowed values) before creating; it lists only fields the policy lets the agent write, plus required ones. `create_defaults` forces fixed field values on every create (overriding the agent), e.g. always setting a "Team" field. `project_create_defaults` layers per-project values on top, for fields whose option ids differ between projects. `allowed_issue_types` limits which issue types may be created (e.g. only `Task` and `Bug`); the create tools name them in their description, and any other type is refused before a request is sent.
 
 ### Rich-text fields (description, comment body)
 

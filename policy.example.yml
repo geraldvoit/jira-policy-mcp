@@ -47,6 +47,12 @@ allowed_fields:
   - labels
 allow_all_fields: false
 
+# Issue types jira_create_issue may use. Empty or missing allows any type the
+# project offers.
+allowed_issue_types: []
+#   - Task
+#   - Bug
+
 # Fields automatically set on every jira_create_issue call. These are defined
 # by you (the policy author) and override any value the agent supplies, so a
 # field can be forced to a fixed value. Use jira_get_create_fields to find the

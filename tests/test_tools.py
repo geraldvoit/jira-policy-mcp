@@ -233,3 +233,28 @@ def test_create_fields_lists_everything_when_all_fields_are_allowed():
     policy = make_policy(capabilities={"create": True}, allow_all_fields=True)
     result = tools.get_create_fields(policy, lambda: FakeClient(), "ACME", "Task")
     assert len(result["fields"]) == 3
+
+
+def test_create_refuses_issue_type_outside_allowlist_without_a_call():
+    policy = make_policy(
+        capabilities={"create": True},
+        allow_all_fields=True,
+        allowed_issue_types=["Task", "Bug"],
+    )
+    fake = FakeClient()
+    with pytest.raises(PolicyError, match="'Story' is not allowed"):
+        tools.create_issue(policy, lambda: fake, "ACME", "Story", {"summary": "x"})
+    with pytest.raises(PolicyError, match="not allowed"):
+        tools.get_create_fields(policy, lambda: fake, "ACME", "Story")
+    assert fake.calls == []
+
+
+def test_create_passes_policy_spelling_of_allowed_issue_type():
+    policy = make_policy(
+        capabilities={"create": True},
+        allow_all_fields=True,
+        allowed_issue_types=["Task", "Bug"],
+    )
+    fake = FakeClient()
+    tools.create_issue(policy, lambda: fake, "ACME", "bug", {"summary": "x"})
+    assert fake.calls[-1][2] == "Bug"

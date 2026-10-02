@@ -64,21 +64,28 @@ def build_server(policy: Policy) -> FastMCP:
             return tools.add_comment(policy, client.get, key, body)
 
     if policy.has(Capability.CREATE):
+        # Told up front so the agent doesn't pick a type the policy rejects.
+        types_hint = (
+            f"\n\n`issue_type` must be one of: {', '.join(policy.allowed_issue_types)}."
+            if policy.allowed_issue_types
+            else ""
+        )
 
-        @mcp.tool()
+        @mcp.tool(
+            description="List the fields available (and which are required) when "
+            "creating an issue of the given type in an allowed project." + types_hint
+        )
         def jira_get_create_fields(project: str, issue_type: str) -> dict:
-            """List the fields available (and which are required) when creating
-            an issue of the given type in an allowed project."""
             return tools.get_create_fields(policy, client.get, project, issue_type)
 
-        @mcp.tool()
+        @mcp.tool(
+            description="Create a new issue in an allowed project. Fields are subject "
+            "to the policy's field rules (allowed_fields / allow_all_fields).\n\n"
+            "`project` must be the key the user named for this ticket. Never infer "
+            "it from the repo, branch or earlier tickets; if the user named none, "
+            "ask before calling." + types_hint
+        )
         def jira_create_issue(project: str, issue_type: str, fields: dict) -> dict:
-            """Create a new issue in an allowed project. Fields are subject to
-            the policy's field rules (allowed_fields / allow_all_fields).
-
-            `project` must be the key the user named for this ticket. Never
-            infer it from the repo, branch or earlier tickets; if the user
-            named none, ask before calling."""
             return tools.create_issue(policy, client.get, project, issue_type, fields)
 
     if policy.has(Capability.EDIT):
