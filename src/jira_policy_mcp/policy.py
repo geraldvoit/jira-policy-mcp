@@ -115,6 +115,8 @@ class Policy:
     project_create_defaults: dict[str, dict]
     max_search_results: int
     write_scope: WriteScope = WriteScope.ANY
+    # Empty means any issue type the project offers.
+    allowed_issue_types: tuple[str, ...] = ()
 
     # -- construction ---------------------------------------------------------
 
@@ -154,6 +156,9 @@ class Policy:
             str(f).strip() for f in (data.get("allowed_fields") or []) if str(f).strip()
         )
         allow_all_fields = bool(data.get("allow_all_fields", False))
+        allowed_issue_types = tuple(
+            str(t).strip() for t in (data.get("allowed_issue_types") or []) if str(t).strip()
+        )
         create_defaults = dict(data.get("create_defaults") or {})
         project_create_defaults = cls._parse_project_create_defaults(
             data.get("project_create_defaults") or {}, allowed_projects
@@ -178,6 +183,7 @@ class Policy:
             project_create_defaults=project_create_defaults,
             max_search_results=max(1, max_results),
             write_scope=write_scope,
+            allowed_issue_types=allowed_issue_types,
         )
 
     @staticmethod
@@ -250,6 +256,19 @@ class Policy:
             **self.create_defaults,
             **self.project_create_defaults.get(project.upper(), {}),
         }
+
+    def require_issue_type_allowed(self, issue_type: str) -> str:
+        """Return the policy's spelling of the issue type, or raise if not allowed."""
+        name = (issue_type or "").strip()
+        if not self.allowed_issue_types:
+            return name
+        for allowed in self.allowed_issue_types:
+            if allowed.casefold() == name.casefold():
+                return allowed
+        raise PolicyError(
+            f"issue type {issue_type!r} is not allowed by policy "
+            f"(allowed: {', '.join(self.allowed_issue_types)})"
+        )
 
     def require_fields_in_scope(self, fields: dict) -> None:
         if self.allow_all_fields:

@@ -42,3 +42,11 @@ def test_disabled_delete_is_not_registered():
 def test_link_capability_registers_link_tool():
     assert "jira_link_issues" in _tool_names(make_policy(capabilities={"link": True}))
     assert "jira_link_issues" not in _tool_names(make_policy())
+
+
+def test_create_tools_name_the_allowed_issue_types():
+    policy = make_policy(capabilities={"create": True}, allowed_issue_types=["Task", "Bug"])
+    tools = asyncio.run(build_server(policy).list_tools())
+    for tool in tools:
+        if tool.name in {"jira_create_issue", "jira_get_create_fields"}:
+            assert "must be one of: Task, Bug" in tool.description
